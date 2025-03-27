@@ -20,10 +20,19 @@ const userSchema = new mongoose.Schema({
     enum: ['user', 'admin'],
     default: 'user'
   },
+  verificationPoints: {
+    type: Number,
+    default: 0
+  },
+  rank: {
+    type: String,
+    enum: ['New', 'Trusted', 'Reliable', 'Guardian'],
+    default: 'New'
+  },
   createdAt: {
     type: Date,
     default: Date.now
   }
 });
 
-module.exports = mongoose.model('User', userSchema); 
+module.exports = mongoose.model('User', userSchema);

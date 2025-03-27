@@ -1,6 +1,7 @@
 // const express = require('express');
 // const router = express.Router();
 // const Report = require('../models/Report');
+// const User = require('../models/User'); // Add User model
 // const adminAuth = require('../middleware/adminAuth');
 
 // // Get all reports (admin only)
@@ -53,11 +54,27 @@
 // // Get report statistics
 // router.get('/statistics', adminAuth, async (req, res) => {
 //   try {
+//     // Report stats
 //     const totalReports = await Report.countDocuments();
 //     const verifiedReports = await Report.countDocuments({ verified: true });
 //     const resolvedReports = await Report.countDocuments({ status: 'completed' });
     
-//     // Calculate average response time (time between creation and verification)
+//     // User stats
+//     const totalUsers = await User.countDocuments();
+//     const adminUsers = await User.countDocuments({ role: 'admin' });
+//     const bannedUsers = await User.countDocuments({ isBanned: true }); // Assuming isBanned field
+
+//     // Recent activity
+//     const now = new Date();
+//     const startOfDay = new Date(now.setHours(0, 0, 0, 0));
+//     const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+//     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+//     const reportsToday = await Report.countDocuments({ createdAt: { $gte: startOfDay } });
+//     const reportsThisWeek = await Report.countDocuments({ createdAt: { $gte: startOfWeek } });
+//     const reportsThisMonth = await Report.countDocuments({ createdAt: { $gte: startOfMonth } });
+
+//     // Average response time
 //     const verifiedReportsWithTime = await Report.find({ verifiedAt: { $exists: true } });
 //     const totalResponseTime = verifiedReportsWithTime.reduce((acc, report) => {
 //       return acc + (report.verifiedAt - report.createdAt);
@@ -66,17 +83,27 @@
 //       ? Math.round(totalResponseTime / (verifiedReportsWithTime.length * 1000 * 60 * 60)) // Convert to hours
 //       : 0;
 
-//     // Get category distribution
+//     // Category distribution
 //     const categoryDistribution = await Report.aggregate([
 //       { $group: { _id: '$category', count: { $sum: 1 } } },
 //       { $project: { category: '$_id', count: 1, _id: 0 } }
 //     ]);
 
 //     res.json({
+//       totalUsers,
+//       adminUsers,
+//       bannedUsers,
 //       totalReports,
 //       verifiedReports,
 //       resolvedReports,
 //       averageResponseTime,
+//       statusDistribution: {
+//         pending: await Report.countDocuments({ status: 'Pending' }), // Match AdminPanel.jsx statuses
+//         resolved: resolvedReports
+//       },
+//       reportsToday,
+//       reportsThisWeek,
+//       reportsThisMonth,
 //       categoryDistribution: categoryDistribution.reduce((acc, curr) => {
 //         acc[curr.category] = curr.count;
 //         return acc;
@@ -88,11 +115,11 @@
 //   }
 // });
 
-// module.exports = router; 
+// module.exports = router;
 const express = require('express');
 const router = express.Router();
 const Report = require('../models/Report');
-const User = require('../models/User'); // Add User model
+const User = require('../models/User');
 const adminAuth = require('../middleware/adminAuth');
 
 // Get all reports (admin only)
@@ -148,12 +175,12 @@ router.get('/statistics', adminAuth, async (req, res) => {
     // Report stats
     const totalReports = await Report.countDocuments();
     const verifiedReports = await Report.countDocuments({ verified: true });
-    const resolvedReports = await Report.countDocuments({ status: 'completed' });
-    
+    const resolvedReports = await Report.countDocuments({ status: 'Resolved' });
+
     // User stats
     const totalUsers = await User.countDocuments();
     const adminUsers = await User.countDocuments({ role: 'admin' });
-    const bannedUsers = await User.countDocuments({ isBanned: true }); // Assuming isBanned field
+    const bannedUsers = await User.countDocuments({ isBanned: true });
 
     // Recent activity
     const now = new Date();
@@ -180,6 +207,14 @@ router.get('/statistics', adminAuth, async (req, res) => {
       { $project: { category: '$_id', count: 1, _id: 0 } }
     ]);
 
+    // Status distribution (full set)
+    const statusDistribution = {
+      Pending: await Report.countDocuments({ status: 'Pending' }),
+      'In Progress': await Report.countDocuments({ status: 'In Progress' }),
+      Resolved: resolvedReports,
+      Rejected: await Report.countDocuments({ status: 'Rejected' }),
+    };
+
     res.json({
       totalUsers,
       adminUsers,
@@ -188,10 +223,7 @@ router.get('/statistics', adminAuth, async (req, res) => {
       verifiedReports,
       resolvedReports,
       averageResponseTime,
-      statusDistribution: {
-        pending: await Report.countDocuments({ status: 'Pending' }), // Match AdminPanel.jsx statuses
-        resolved: resolvedReports
-      },
+      statusDistribution,
       reportsToday,
       reportsThisWeek,
       reportsThisMonth,
